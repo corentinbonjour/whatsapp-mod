@@ -28,6 +28,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS events_type ON events (type, id);
   CREATE INDEX IF NOT EXISTS events_outcome ON events (outcome, id);
   CREATE INDEX IF NOT EXISTS events_at ON events (at);
+  CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
 `);
 
 db.prepare('DELETE FROM events WHERE at < ?').run(new Date(Date.now() - RETENTION_DAYS * 86400000).toISOString());
@@ -137,4 +142,20 @@ export function getStats() {
     )
     .get(midnight.toISOString());
   return { deleted: r.deleted, kicked: r.kicked, today: r.today, lastActionAt: r.lastActionAt, since: r.since };
+}
+
+export function createSession(tokenHash, createdAt, expiresAt) {
+  db.prepare('INSERT INTO sessions (token_hash, created_at, expires_at) VALUES (?, ?, ?)').run(tokenHash, createdAt, expiresAt);
+}
+
+export function sessionExists(tokenHash, now) {
+  return Boolean(db.prepare('SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ?').get(tokenHash, now));
+}
+
+export function deleteSession(tokenHash) {
+  db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash);
+}
+
+export function purgeSessions(now) {
+  db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now);
 }

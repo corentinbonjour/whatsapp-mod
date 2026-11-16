@@ -322,6 +322,16 @@ dialog h3 { margin: 0 0 6px; font-size: 16px; }
 dialog p { margin: 0 0 18px; color: var(--muted); }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+.login { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.login-card { width: min(380px, 100%); padding: 28px; display: grid; gap: 18px; }
+.login-card .brand { justify-content: center; }
+.login-card h1 { margin: 0; font-size: 18px; text-align: center; letter-spacing: -.01em; }
+.login-card p { margin: -10px 0 0; color: var(--muted); text-align: center; font-size: 13px; }
+.login-card .input { height: 42px; padding-right: 42px; }
+.login-card .btn { height: 42px; }
+.peek { position: absolute; right: 4px; }
+.login-error { color: var(--danger); font-size: 12.5px; text-align: center; min-height: 18px; margin-top: -8px; }
+
 [hidden] { display: none !important; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
