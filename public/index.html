@@ -234,6 +234,16 @@ function renderStats() {
   $("stLastSub").textContent = st.lastActionAt ? clock(st.lastActionAt) : "";
 }
 
+function avatar(g) {
+  const el = h("span", { class: "avatar", "aria-hidden": "true", text: initials(g.subject) });
+  if (g.picture) {
+    const img = h("img", { src: "/api/groups/" + encodeURIComponent(g.id) + "/picture?v=" + encodeURIComponent(g.picture), alt: "", loading: "lazy", decoding: "async" });
+    img.addEventListener("error", () => img.remove());
+    el.append(img);
+  }
+  return el;
+}
+
 function renderGroups() {
   if (!cfg) return;
   const q = $("groupSearch").value.trim().toLowerCase();
@@ -242,7 +252,9 @@ function renderGroups() {
     (!q || g.subject.toLowerCase().includes(q)) &&
     (groupFilter === "all" || (groupFilter === "on" && enabled.has(g.id)) || (groupFilter === "noadmin" && !g.botAdmin)),
   );
-  $("groupCount").textContent = groups.length ? nf.format(enabled.size) + " actif" + (enabled.size > 1 ? "s" : "") + " sur " + nf.format(groups.length) : "";
+  const pj = lastState?.pictures;
+  $("groupCount").textContent = (groups.length ? nf.format(enabled.size) + " actif" + (enabled.size > 1 ? "s" : "") + " sur " + nf.format(groups.length) : "")
+    + (pj?.running ? ", photos " + pj.done + "/" + pj.total : "");
   const box = $("groups");
   if (!shown.length) {
     box.replaceChildren(groups.length
@@ -259,7 +271,7 @@ function renderGroups() {
       c.enabledGroups = sw.checked ? [...new Set([...c.enabledGroups, g.id])] : c.enabledGroups.filter((x) => x !== g.id);
     }));
     frag.append(h("label", { class: "group" + (on ? " on" : "") },
-      h("span", { class: "avatar", "aria-hidden": "true", text: initials(g.subject) }),
+      avatar(g),
       h("span", { class: "meta" },
         h("div", { class: "name", text: g.subject, title: g.subject }),
         h("div", { class: "sub" },
@@ -425,7 +437,7 @@ async function poll() {
     lastState = s;
     if (!cfg) { cfg = s.config; renderConfig(); }
     renderTop(s);
-    const gs = JSON.stringify(s.groups.map((g) => [g.id, g.subject, g.size, g.botAdmin]));
+    const gs = JSON.stringify(s.groups.map((g) => [g.id, g.subject, g.size, g.botAdmin, g.picture]).concat([s.pictures.running, s.pictures.done]));
     if (gs !== groupsSig) { groupsSig = gs; groups = s.groups; renderGroups(); }
     const es = s.events.map((e) => e.id).join(",");
     if (es !== eventsSig) { eventsSig = es; renderEvents(s.events); }
@@ -463,7 +475,7 @@ $("refreshBtn").addEventListener("click", async () => {
   try {
     const r = await api("POST", "/api/groups/refresh");
     groups = r.groups;
-    groupsSig = JSON.stringify(groups.map((g) => [g.id, g.subject, g.size, g.botAdmin]));
+    groupsSig = JSON.stringify(groups.map((g) => [g.id, g.subject, g.size, g.botAdmin, g.picture]));
     renderGroups();
     renderStats();
     toast(nf.format(groups.length) + " groupes chargés");
