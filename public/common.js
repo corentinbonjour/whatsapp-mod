@@ -13,6 +13,9 @@ const ICONS = {
   flask: '<path d="M9.5 3h5M10 3v6l-5.2 9A2 2 0 0 0 6.5 21h11a2 2 0 0 0 1.7-3L14 9V3"/><path d="M7.5 15h9"/>',
   pencil: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
   download: '<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/>',
+  "log-out": '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="m9 16-4-4 4-4"/><path d="M5 12h11"/>',
+  lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
 };
 document.body.insertAdjacentHTML(
   "afterbegin",
@@ -47,11 +50,13 @@ function icon(name) {
 }
 
 async function api(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  const headers = { "X-Requested-With": "fetch" };
+  if (body) headers["Content-Type"] = "application/json";
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, credentials: "same-origin" });
+  if (res.status === 401 && location.pathname !== "/login") {
+    location.replace("/login?next=" + encodeURIComponent(location.pathname + location.search));
+    throw new Error("Session expirée");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Erreur " + res.status);
   return data;
@@ -183,4 +188,12 @@ function every(ms, fn) {
   fn();
   setInterval(() => { if (!document.hidden) fn(); }, ms);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) fn(); });
+}
+
+const signOutBtn = $("signOutBtn");
+if (signOutBtn) {
+  signOutBtn.addEventListener("click", async () => {
+    try { await api("POST", "/api/auth/logout"); } catch {}
+    location.replace("/login");
+  });
 }

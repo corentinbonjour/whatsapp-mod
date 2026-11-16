@@ -1,27 +1,13 @@
-import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { createAuth } from './auth.js';
 import { listGroups, logout, reconnect, refreshGroups, state } from './bot.js';
 import { getConfig, sanitize, saveConfig } from './config.js';
 import { countEvents, eventGroups, getStats, queryEvents } from './db.js';
 import { findSpam } from './filter.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-
-function basicAuth(password) {
-  const expected = crypto.createHash('sha256').update(password).digest();
-  return (req, res, next) => {
-    const [scheme, encoded] = (req.headers.authorization || '').split(' ');
-    const given =
-      scheme === 'Basic' && encoded
-        ? Buffer.from(encoded, 'base64').toString().split(':').slice(1).join(':')
-        : '';
-    const hash = crypto.createHash('sha256').update(given).digest();
-    if (crypto.timingSafeEqual(hash, expected)) return next();
-    res.set('WWW-Authenticate', 'Basic realm="whatsapp-mod", charset="UTF-8"').status(401).send('Authentification requise');
-  };
-}
 
 function eventFilters(q) {
   const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
@@ -53,10 +39,23 @@ export function createServer() {
   const password = process.env.ADMIN_PASSWORD;
   if (!password) throw new Error('ADMIN_PASSWORD doit être défini');
 
+  const auth = createAuth(password);
   const app = express();
   app.disable('x-powered-by');
-  app.use(basicAuth(password));
+  app.set('trust proxy', 'loopback');
+  app.use((req, res, next) => {
+    res.set({
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'same-origin',
+      'Cache-Control': 'no-store',
+    });
+    next();
+  });
   app.use(express.json({ limit: '1mb' }));
+  app.use(auth.guard);
+  app.post('/api/auth/login', auth.login);
+  app.post('/api/auth/logout', auth.logout);
   app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
   const status = () => ({ status: state.status, me: state.me });
@@ -124,7 +123,7 @@ export function createServer() {
     res.json({ ok: true });
   }));
 
-  app.post('/api/logout', wrap(async (req, res) => {
+  app.post('/api/whatsapp/logout', wrap(async (req, res) => {
     await logout();
     res.json({ ok: true });
   }));

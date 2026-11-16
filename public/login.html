@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Connexion · Antispam</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5.2 3.4 9.4 8 11 4.6-1.6 8-5.8 8-11V5z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="login">
+  <form class="glass login-card" id="form" autocomplete="on">
+    <div class="brand">
+      <span class="brand-mark"><svg class="i"><use href="#i-shield"/></svg></span>
+    </div>
+    <h1>Antispam</h1>
+    <p>Mot de passe du panneau d'administration</p>
+    <input type="text" name="username" autocomplete="username" value="admin" hidden>
+    <label class="field">
+      <svg class="i"><use href="#i-lock"/></svg>
+      <span class="sr">Mot de passe</span>
+      <input class="input" id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <button class="btn ghost sm icon peek" id="peek" type="button" aria-label="Afficher le mot de passe" aria-pressed="false"><svg class="i"><use href="#i-eye"/></svg></button>
+    </label>
+    <div class="login-error" id="error" role="alert"></div>
+    <button class="btn primary" id="submit" type="submit">Se connecter</button>
+  </form>
+</main>
+
+<script src="/common.js"></script>
+<script>
+"use strict";
+function nextUrl() {
+  const n = new URLSearchParams(location.search).get("next") || "/";
+  return n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/\\") && !n.startsWith("/login") ? n : "/";
+}
+
+$("peek").addEventListener("click", () => {
+  const show = $("password").type === "password";
+  $("password").type = show ? "text" : "password";
+  $("peek").setAttribute("aria-pressed", String(show));
+  $("peek").setAttribute("aria-label", show ? "Masquer le mot de passe" : "Afficher le mot de passe");
+  $("password").focus();
+});
+
+$("password").addEventListener("input", () => { $("error").textContent = ""; $("password").classList.remove("invalid"); });
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("submit").disabled = true;
+  try {
+    await api("POST", "/api/auth/login", { password: $("password").value });
+    location.replace(nextUrl());
+  } catch (err) {
+    $("error").textContent = err.message;
+    $("password").classList.add("invalid");
+    $("password").select();
+    $("submit").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

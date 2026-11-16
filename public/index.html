@@ -22,7 +22,8 @@
   <div class="spacer"></div>
   <span class="save-state" id="saveState" aria-live="polite"></span>
   <button class="btn" id="reconnectBtn" hidden><svg class="i"><use href="#i-refresh"/></svg>Reconnecter</button>
-  <button class="btn ghost icon danger" id="logoutBtn" hidden title="Déconnecter WhatsApp" aria-label="Déconnecter WhatsApp"><svg class="i"><use href="#i-power"/></svg></button>
+  <button class="btn ghost icon danger" id="logoutBtn" hidden title="Délier le compte WhatsApp" aria-label="Délier le compte WhatsApp"><svg class="i"><use href="#i-power"/></svg></button>
+  <button class="btn ghost icon" id="signOutBtn" title="Se déconnecter du panneau" aria-label="Se déconnecter du panneau"><svg class="i"><use href="#i-log-out"/></svg></button>
 </header>
 
 <main>
@@ -129,11 +130,11 @@
 
 <dialog id="logoutDialog">
   <div class="glass card">
-    <h3>Déconnecter WhatsApp ?</h3>
+    <h3>Délier le compte WhatsApp ?</h3>
     <p>Le bot arrête de filtrer. Il faudra rescanner un QR code pour le relier à nouveau.</p>
     <form method="dialog" class="actions">
       <button class="btn" value="cancel">Annuler</button>
-      <button class="btn primary" value="ok" style="background:var(--danger);color:#fff">Déconnecter</button>
+      <button class="btn primary" value="ok" style="background:var(--danger);color:#fff">Délier</button>
     </form>
   </div>
 </dialog>
@@ -477,7 +478,7 @@ $("refreshBtn").addEventListener("click", async () => {
 $("reconnectBtn").addEventListener("click", () => api("POST", "/api/reconnect").then(poll).catch((e) => toast(e.message, "err")));
 $("logoutBtn").addEventListener("click", () => $("logoutDialog").showModal());
 $("logoutDialog").addEventListener("close", () => {
-  if ($("logoutDialog").returnValue === "ok") api("POST", "/api/logout").then(poll).catch((e) => toast(e.message, "err"));
+  if ($("logoutDialog").returnValue === "ok") api("POST", "/api/whatsapp/logout").then(poll).catch((e) => toast(e.message, "err"));
 });
 window.addEventListener("beforeunload", (e) => { if (saving || saveTimer) e.preventDefault(); });
 

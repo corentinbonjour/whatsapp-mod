@@ -38,7 +38,7 @@ L'interface écoute sur `127.0.0.1:3000` et n'est donc pas joignable depuis Inte
 ssh -N -L 3000:127.0.0.1:3000 utilisateur@serveur
 ```
 
-et allez sur http://localhost:3000. Le navigateur demande un identifiant (n'importe lequel) et le mot de passe de `.env`.
+et allez sur http://localhost:3000. La page de connexion demande le mot de passe de `.env`. La session dure 30 jours, ou jusqu'à ce que vous cliquiez sur le bouton de déconnexion en haut à droite.
 
 ## Première connexion
 
@@ -121,6 +121,10 @@ ADMIN_PASSWORD=dev npm start
 
 Les données vont alors dans `./data`. Le code est dans `src/` : `bot.js` gère la connexion et la modération, `filter.js` la détection, `db.js` l'historique, `server.js` l'API. L'interface est en HTML et JavaScript sans framework, dans `public/`.
 
-## Exposer l'interface
+## Accès à l'interface
 
-Le tunnel SSH reste la solution la plus simple. Pour un accès direct, placez un reverse proxy avec HTTPS devant le port 3000 (Caddy ou nginx). L'authentification HTTP Basic n'est pas chiffrée sans HTTPS.
+Toutes les pages et toutes les routes de l'API demandent une session, sauf la page de connexion et sa feuille de style. Sans session, l'API répond 401 et les pages renvoient vers la connexion. Les sessions sont enregistrées côté serveur et une déconnexion invalide le cookie aussitôt. Le cookie est `HttpOnly` et `SameSite=Strict`, et les requêtes qui modifient quelque chose doivent porter l'en-tête `X-Requested-With: fetch`, ce qu'un formulaire d'un autre site ne peut pas envoyer.
+
+Après cinq mots de passe faux, la connexion est bloquée pendant quinze minutes. Derrière le tunnel SSH toutes les requêtes arrivent de la même adresse, donc ce blocage vaut pour tout le monde.
+
+Le tunnel SSH reste la solution la plus simple. Pour un accès direct, placez un reverse proxy avec HTTPS devant le port 3000 (Caddy ou nginx) et activez HSTS : sans HTTPS, le mot de passe et le cookie circulent en clair.
