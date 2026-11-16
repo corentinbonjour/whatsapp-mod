@@ -46,6 +46,8 @@ et allez sur http://localhost:3000. La page de connexion demande le mot de passe
 2. Une fois connecté, cliquez sur Actualiser dans la carte Groupes pour charger la liste.
 3. Activez les groupes à surveiller. Une étiquette « bot non admin » signale ceux où il faut encore donner les droits admin au bot.
 
+Après Actualiser, le bot télécharge aussi la photo de chaque groupe, une toutes les deux secondes, et la garde sept jours. Le compteur de la carte Groupes indique l'avancement.
+
 La session WhatsApp est conservée dans le volume Docker. Un redémarrage ou une mise à jour ne demande pas de rescanner.
 
 ## Règles
@@ -94,6 +96,7 @@ Tout est dans le volume `data`, monté sur `/app/data` :
 - `config.json` : groupes activés, règles, whitelist.
 - `groups.json` : dernière liste des groupes chargée.
 - `events.db` : l'historique.
+- `pictures/` : les photos des groupes.
 
 Pour une sauvegarde :
 

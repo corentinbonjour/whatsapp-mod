@@ -15,6 +15,7 @@ import QRCode from 'qrcode';
 import { DATA_DIR, getConfig } from './config.js';
 import { addEvent } from './db.js';
 import { extractText, findSpam } from './filter.js';
+import { pictureVersion, syncPictures } from './pictures.js';
 
 const AUTH_DIR = path.join(DATA_DIR, 'auth');
 const GROUPS_FILE = path.join(DATA_DIR, 'groups.json');
@@ -87,6 +88,7 @@ export function listGroups() {
       size: g.participants?.length || 0,
       botAdmin: Boolean(botParticipant(g)?.admin),
       enabled: enabled.has(g.id),
+      picture: pictureVersion(g.id),
     }))
     .sort((a, b) => a.subject.localeCompare(b.subject, 'fr'));
 }
@@ -96,6 +98,9 @@ export async function refreshGroups() {
   const all = await sock.groupFetchAllParticipating();
   state.groups = new Map(Object.entries(all));
   saveGroupsSoon();
+  syncPictures(() => (state.status === 'open' ? sock : null), [...state.groups.keys()], log).catch((e) =>
+    log(`Erreur chargement des photos de groupe: ${e.message}`, {}, 'error'),
+  );
 }
 
 function onGroupsUpsert(list) {

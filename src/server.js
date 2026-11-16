@@ -6,6 +6,7 @@ import { listGroups, logout, reconnect, refreshGroups, state } from './bot.js';
 import { getConfig, sanitize, saveConfig } from './config.js';
 import { countEvents, eventGroups, getStats, queryEvents } from './db.js';
 import { findSpam } from './filter.js';
+import { pictureJob, picturePath } from './pictures.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -70,6 +71,7 @@ export function createServer() {
       config: getConfig(),
       events: queryEvents({}, 10).events,
       stats: getStats(),
+      pictures: pictureJob,
     });
   });
 
@@ -78,6 +80,16 @@ export function createServer() {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
     const page = queryEvents(filters, limit);
     res.json({ ...page, total: filters.before ? undefined : countEvents(filters) });
+  });
+
+  app.get('/api/groups/:id/picture', (req, res) => {
+    const id = req.params.id;
+    const file = /^[\d-]+@g\.us$/.test(id) ? picturePath(id) : null;
+    if (!file) return res.status(404).end();
+    res.set('Cache-Control', 'private, max-age=604800');
+    res.type('jpeg').sendFile(file, { cacheControl: false }, (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
   });
 
   app.get('/api/events/groups', (req, res) => res.json(eventGroups()));
