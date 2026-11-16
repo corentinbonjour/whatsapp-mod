@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Historique · Antispam</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5.2 3.4 9.4 8 11 4.6-1.6 8-5.8 8-11V5z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark"><svg class="i"><use href="#i-shield"/></svg></span>
+    <div>Antispam<small>WhatsApp</small></div>
+  </a>
+  <nav class="nav" aria-label="Navigation">
+    <a href="/">Tableau de bord</a>
+    <a href="/logs" aria-current="page">Historique</a>
+  </nav>
+  <span class="chip" id="status" role="status" aria-live="polite"><span class="dot"></span><span class="label">Chargement</span></span>
+  <div class="spacer"></div>
+</header>
+
+<main>
+  <div class="page-title">
+    <h1>Historique</h1>
+    <p id="total"></p>
+    <span class="spacer"></span>
+    <a class="btn sm" id="exportBtn" href="/api/events.csv" download><svg class="i"><use href="#i-download"/></svg>Exporter en CSV</a>
+  </div>
+
+  <section class="glass card">
+    <div class="filters">
+      <label class="field"><svg class="i"><use href="#i-search"/></svg><span class="sr">Rechercher</span><input class="input" id="q" type="search" placeholder="Rechercher dans l'historique" autocomplete="off"></label>
+      <label class="field"><span class="sr">Résultat</span>
+        <select class="input" id="outcome">
+          <option value="">Tous les résultats</option>
+          <option value="deleted">Supprimé</option>
+          <option value="kicked">Exclu</option>
+          <option value="not-admin">Bot non admin</option>
+          <option value="whitelist">Whitelist</option>
+          <option value="admin">Admin épargné</option>
+        </select>
+      </label>
+      <label class="field"><span class="sr">Groupe</span><select class="input" id="group"><option value="">Tous les groupes</option></select></label>
+      <div class="date-group">
+        <label class="sr" for="from">Du</label><input class="input" type="date" id="from" title="Du">
+        <label class="sr" for="to">Au</label><input class="input" type="date" id="to" title="Au">
+      </div>
+      <button class="btn ghost sm" id="resetBtn" type="button">Réinitialiser</button>
+    </div>
+    <div class="filter-row">
+      <div class="seg" role="group" aria-label="Type" id="type">
+        <button type="button" data-v="" aria-pressed="true">Tout</button>
+        <button type="button" data-v="spam" aria-pressed="false">Spam</button>
+        <button type="button" data-v="sys" aria-pressed="false">Système</button>
+        <button type="button" data-v="problem" aria-pressed="false">Problèmes</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn sm primary" id="newBtn" type="button" hidden></button>
+    </div>
+  </section>
+
+  <section class="glass card" style="padding:0;overflow:hidden">
+    <div class="events tall" id="events"></div>
+  </section>
+  <div class="card-foot" id="sentinel"><button class="btn" id="moreBtn" type="button" hidden>Charger plus</button></div>
+</main>
+
+<script src="/common.js"></script>
+<script>
+"use strict";
+const PAGE = 100;
+const f = { q: "", type: "", outcome: "", group: "", from: "", to: "" };
+let events = [];
+let hasMore = false;
+let loading = false;
+let reqSeq = 0;
+let loaded = false;
+
+function readUrl() {
+  const p = new URLSearchParams(location.search);
+  for (const k of Object.keys(f)) f[k] = p.get(k) || "";
+  $("q").value = f.q;
+  $("outcome").value = f.outcome;
+  $("from").value = f.from;
+  $("to").value = f.to;
+  for (const b of $("type").children) b.setAttribute("aria-pressed", String(b.dataset.v === f.type));
+}
+
+function apiParams(extra = {}) {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.type) p.set("type", f.type);
+  if (f.outcome) p.set("outcome", f.outcome);
+  if (f.group) p.set("group", f.group);
+  if (f.from) p.set("from", new Date(f.from + "T00:00:00").toISOString());
+  if (f.to) { const d = new Date(f.to + "T00:00:00"); d.setDate(d.getDate() + 1); p.set("to", d.toISOString()); }
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  return p;
+}
+
+function syncUrl() {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v) p.set(k, v);
+  const qs = p.toString();
+  history.replaceState(null, "", qs ? "?" + qs : location.pathname);
+  $("exportBtn").href = "/api/events.csv?" + apiParams().toString();
+}
+
+function render() {
+  const box = $("events");
+  if (!events.length) {
+    const filtered = Object.values(f).some(Boolean);
+    box.replaceChildren(h("div", { class: "empty" },
+      h("b", { text: filtered ? "Aucun résultat" : "Historique vide" }),
+      filtered ? "Aucun événement ne correspond à ces filtres." : "Les événements apparaîtront ici."));
+  } else {
+    const frag = document.createDocumentFragment();
+    let day = "";
+    for (const e of events) {
+      const d = new Date(e.at).toDateString();
+      if (d !== day) { day = d; frag.append(h("div", { class: "day", text: dayLabel(e.at) })); }
+      frag.append(eventRow(e, { timeOnly: true }));
+    }
+    box.replaceChildren(frag);
+  }
+  $("moreBtn").hidden = !hasMore;
+}
+
+async function load(reset) {
+  if (loading && !reset) return;
+  const seq = ++reqSeq;
+  loading = true;
+  $("moreBtn").disabled = true;
+  try {
+    const extra = { limit: PAGE };
+    if (!reset && events.length) extra.before = events[events.length - 1].id;
+    const r = await api("GET", "/api/events?" + apiParams(extra));
+    if (seq !== reqSeq) return;
+    events = reset ? r.events : events.concat(r.events);
+    hasMore = r.hasMore;
+    if (reset) {
+      $("total").textContent = nf.format(r.total) + " événement" + (r.total > 1 ? "s" : "");
+      $("newBtn").hidden = true;
+    }
+    loaded = true;
+    render();
+  } catch (e) {
+    toast(e.message, "err");
+  } finally {
+    if (seq === reqSeq) { loading = false; $("moreBtn").disabled = false; }
+  }
+}
+
+function apply() {
+  syncUrl();
+  load(true);
+}
+
+async function checkNew() {
+  try {
+    renderStatusChip(await api("GET", "/api/status"));
+  } catch {
+    renderStatusChip(null);
+  }
+  if (!loaded || loading) return;
+  try {
+    const r = await api("GET", "/api/events?" + apiParams({ limit: 50 }));
+    const top = events[0]?.id || 0;
+    const n = r.events.filter((e) => e.id > top).length;
+    if (!n) return;
+    if (!events.length) return load(true);
+    $("newBtn").hidden = false;
+    $("newBtn").textContent = (n >= 50 ? "50+" : n) + " nouveau" + (n > 1 ? "x" : "") + ", afficher";
+  } catch {}
+}
+
+async function loadGroups() {
+  try {
+    const list = await api("GET", "/api/events/groups");
+    $("group").append(...list.map((g) => h("option", { value: g, text: g })));
+    $("group").value = f.group;
+  } catch {}
+}
+
+let qTimer = null;
+$("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => { f.q = $("q").value.trim(); apply(); }, 250); });
+for (const id of ["outcome", "group", "from", "to"]) $(id).addEventListener("change", () => { f[id] = $(id).value; apply(); });
+segmented($("type"), (v) => { f.type = v; apply(); });
+$("resetBtn").addEventListener("click", () => {
+  for (const k of Object.keys(f)) f[k] = "";
+  readUrlFrom(f);
+  apply();
+});
+function readUrlFrom(v) {
+  $("q").value = v.q; $("outcome").value = v.outcome; $("group").value = v.group; $("from").value = v.from; $("to").value = v.to;
+  for (const b of $("type").children) b.setAttribute("aria-pressed", String(b.dataset.v === v.type));
+}
+$("moreBtn").addEventListener("click", () => load(false));
+$("newBtn").addEventListener("click", () => { window.scrollTo({ top: 0, behavior: "smooth" }); load(true); });
+
+new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting && hasMore && !loading) load(false);
+}, { rootMargin: "400px" }).observe($("sentinel"));
+
+readUrl();
+syncUrl();
+loadGroups();
+load(true);
+every(10000, checkNew);
+</script>
+</body>
+</html>

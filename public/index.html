@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>Antispam</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%2334d399' d='M12 2 4 5v6c0 5.2 3.4 9.4 8 11 4.6-1.6 8-5.8 8-11V5z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark"><svg class="i"><use href="#i-shield"/></svg></span>
+    <div>Antispam<small>WhatsApp</small></div>
+  </a>
+  <nav class="nav" aria-label="Navigation">
+    <a href="/" aria-current="page">Tableau de bord</a>
+    <a href="/logs">Historique</a>
+  </nav>
+  <span class="chip" id="status" role="status" aria-live="polite"><span class="dot"></span><span class="label">Chargement</span></span>
+  <div class="spacer"></div>
+  <span class="save-state" id="saveState" aria-live="polite"></span>
+  <button class="btn" id="reconnectBtn" hidden><svg class="i"><use href="#i-refresh"/></svg>Reconnecter</button>
+  <button class="btn ghost icon danger" id="logoutBtn" hidden title="Déconnecter WhatsApp" aria-label="Déconnecter WhatsApp"><svg class="i"><use href="#i-power"/></svg></button>
+</header>
+
+<main>
+  <section class="glass qr" id="qrCard" hidden>
+    <div class="qr-img" id="qrImg"></div>
+    <div>
+      <h2>Lier le compte WhatsApp</h2>
+      <div class="desc" style="margin:0">Le code se renouvelle toutes les 20 secondes environ.</div>
+      <ol>
+        <li><span>Ouvre <b>WhatsApp</b> sur le téléphone du bot</span></li>
+        <li><span><b>Appareils connectés</b>, puis <b>Connecter un appareil</b></span></li>
+        <li><span>Scanne ce code</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="stats" aria-label="Statistiques">
+    <div class="glass stat"><span class="label">Groupes surveillés</span><span class="value" id="stGroups">0</span><span class="sub" id="stGroupsSub"></span></div>
+    <div class="glass stat"><span class="label">Messages supprimés</span><span class="value" id="stDeleted">0</span><span class="sub" id="stToday"></span></div>
+    <div class="glass stat"><span class="label">Exclusions</span><span class="value" id="stKicked">0</span><span class="sub" id="stKickMode"></span></div>
+    <div class="glass stat"><span class="label">Dernière action</span><span class="value" id="stLast">Aucune</span><span class="sub" id="stLastSub"></span></div>
+  </section>
+
+  <div class="cols">
+    <section class="glass card">
+      <div class="card-head">
+        <h2>Groupes</h2>
+        <span class="count" id="groupCount"></span>
+        <span class="spacer"></span>
+        <button class="btn sm" id="refreshBtn"><svg class="i"><use href="#i-refresh"/></svg>Actualiser</button>
+      </div>
+      <p class="desc">Le bot n'agit que dans les groupes activés, et doit y être admin. Actualiser recharge la liste depuis WhatsApp.</p>
+      <div class="toolbar">
+        <label class="field"><svg class="i"><use href="#i-search"/></svg><span class="sr">Rechercher</span><input class="input" id="groupSearch" type="search" placeholder="Rechercher un groupe" autocomplete="off"></label>
+        <div class="seg" role="group" aria-label="Filtre" id="groupFilter">
+          <button type="button" data-v="all" aria-pressed="true">Tous</button>
+          <button type="button" data-v="on" aria-pressed="false">Actifs</button>
+          <button type="button" data-v="noadmin" aria-pressed="false">Sans admin</button>
+        </div>
+      </div>
+      <div class="list groups" id="groups"></div>
+    </section>
+
+    <div class="stack">
+      <section class="glass card">
+        <div class="card-head"><h2>Protection</h2></div>
+        <label class="setting">
+          <span class="txt"><b>Liens d'invitation WhatsApp</b><span>Bloque chat.whatsapp.com et les liens de chaînes</span></span>
+          <input type="checkbox" class="switch" role="switch" id="blockInviteLinks">
+        </label>
+        <label class="setting">
+          <span class="txt"><b>Épargner les admins</b><span>Les messages des admins du groupe ne sont jamais filtrés</span></span>
+          <input type="checkbox" class="switch" role="switch" id="ignoreAdmins">
+        </label>
+        <div class="setting static">
+          <span class="txt"><b>Action</b><span>Ce que fait le bot sur un message bloqué</span></span>
+          <div class="seg" role="group" aria-label="Action" id="action">
+            <button type="button" data-v="delete" aria-pressed="false">Supprimer</button>
+            <button type="button" data-v="kick" aria-pressed="false">Supprimer et exclure</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass card">
+        <div class="card-head"><h2>Règles</h2><span class="count" id="ruleCount"></span></div>
+        <p class="desc">Texte simple : insensible à la casse, aux accents et aux lettres stylisées. Entre slashs : expression régulière, par exemple <code>/join.*group/</code>.</p>
+        <form class="add-row" id="ruleForm" autocomplete="off">
+          <label class="field"><span class="sr">Nouveau motif</span><textarea class="input mono" id="ruleInput" rows="1" placeholder="Ajouter un motif" spellcheck="false"></textarea></label>
+          <button class="btn icon" type="submit" aria-label="Ajouter le motif"><svg class="i"><use href="#i-plus"/></svg></button>
+        </form>
+        <div class="field-error" id="ruleError"></div>
+        <div class="tokens" id="rules"></div>
+        <div class="kbd-hint">Clique sur une règle pour la modifier. Entrée valide, Échap annule.</div>
+        <div class="tester">
+          <div class="tester-label"><svg class="i"><use href="#i-flask"/></svg>Tester un message</div>
+          <label class="field"><span class="sr">Message à tester</span><textarea class="input" id="testInput" rows="1" placeholder="Colle un message pour voir s'il serait bloqué"></textarea></label>
+          <div class="result" id="testResult" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="glass card">
+        <div class="card-head"><h2>Whitelist</h2><span class="count" id="wlCount"></span></div>
+        <p class="desc">Ces numéros ne sont jamais filtrés. Un numéro français qui commence par 0 est converti au format international.</p>
+        <form class="add-row" id="wlForm" autocomplete="off">
+          <label class="field"><span class="sr">Numéro</span><input class="input" id="wlInput" inputmode="tel" placeholder="+33 6 12 34 56 78"></label>
+          <button class="btn icon" type="submit" aria-label="Ajouter le numéro"><svg class="i"><use href="#i-plus"/></svg></button>
+        </form>
+        <div class="field-error" id="wlError"></div>
+        <div class="tokens" id="whitelist"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="glass card">
+    <div class="card-head">
+      <h2>Activité récente</h2>
+      <span class="count">10 derniers événements</span>
+      <span class="spacer"></span>
+      <a class="btn sm" href="/logs">Tout l'historique</a>
+    </div>
+    <div class="list events" id="events"></div>
+  </section>
+</main>
+
+<dialog id="logoutDialog">
+  <div class="glass card">
+    <h3>Déconnecter WhatsApp ?</h3>
+    <p>Le bot arrête de filtrer. Il faudra rescanner un QR code pour le relier à nouveau.</p>
+    <form method="dialog" class="actions">
+      <button class="btn" value="cancel">Annuler</button>
+      <button class="btn primary" value="ok" style="background:var(--danger);color:#fff">Déconnecter</button>
+    </form>
+  </div>
+</dialog>
+
+<script src="/common.js"></script>
+<script>
+"use strict";
+let cfg = null;
+let groups = [];
+let groupsSig = "";
+let eventsSig = "";
+let groupFilter = "all";
+let saveTimer = null;
+let saving = false;
+let saveAgain = false;
+let lastState = null;
+let editing = null;
+
+const isRegex = (p) => /^\/.+\/[a-z]*$/s.test(p);
+function patternError(p) {
+  const m = p.match(/^\/(.+)\/([a-z]*)$/s);
+  if (!m) return null;
+  try { new RegExp(m[1], m[2]); return null; } catch (e) { return "Regex invalide : " + e.message; }
+}
+function initials(name) {
+  const words = name.normalize("NFKD").replace(/[^\p{L}\p{N} ]/gu, "").trim().split(/\s+/).filter(Boolean);
+  return ((words[0]?.[0] || "#") + (words[1]?.[0] || "")).toUpperCase();
+}
+function autosize(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + 2 + "px";
+}
+
+function setSaveState(kind, msg) {
+  const el = $("saveState");
+  el.className = "save-state" + (kind === "error" ? " err" : kind === "saved" ? " ok" : "");
+  el.replaceChildren();
+  if (kind === "saving") el.append(h("span", { text: "Enregistrement..." }));
+  else if (kind === "saved") el.append(icon("check"), h("span", { text: "Enregistré" }));
+  else if (kind === "error") el.append(icon("alert"), h("span", { text: msg || "Erreur d'enregistrement" }));
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  setSaveState("saving");
+  saveTimer = setTimeout(save, 450);
+}
+async function save() {
+  saveTimer = null;
+  if (saving) { saveAgain = true; return; }
+  saving = true;
+  try {
+    cfg = await api("PUT", "/api/config", cfg);
+    setSaveState("saved");
+    if (!editing) renderConfig();
+  } catch (e) {
+    setSaveState("error", e.message);
+    toast(e.message, "err");
+  } finally {
+    saving = false;
+    if (saveAgain) { saveAgain = false; save(); }
+  }
+}
+function updateConfig(fn) {
+  fn(cfg);
+  renderConfig();
+  renderGroups();
+  renderStats();
+  scheduleSave();
+  runTest();
+}
+
+function renderTop(s) {
+  renderStatusChip(s);
+  $("logoutBtn").hidden = s.status !== "open";
+  $("reconnectBtn").hidden = s.status !== "stopped";
+  $("qrCard").hidden = !s.qr;
+  if (s.qr && $("qrImg").dataset.src !== s.qr) {
+    $("qrImg").dataset.src = s.qr;
+    $("qrImg").replaceChildren(h("img", { src: s.qr, alt: "QR code de liaison WhatsApp", width: 212, height: 212 }));
+  }
+  $("refreshBtn").disabled = s.status !== "open";
+}
+
+function renderStats() {
+  if (!cfg || !lastState) return;
+  const st = lastState.stats;
+  const missingAdmin = groups.filter((g) => cfg.enabledGroups.includes(g.id) && !g.botAdmin).length;
+  $("stGroups").textContent = nf.format(cfg.enabledGroups.length);
+  const sub = $("stGroupsSub");
+  sub.textContent = missingAdmin ? missingAdmin + " sans droits admin" : groups.length ? "sur " + nf.format(groups.length) : "";
+  sub.className = "sub" + (missingAdmin ? " warn" : "");
+  $("stDeleted").textContent = nf.format(st.deleted);
+  $("stToday").textContent = nf.format(st.today) + " aujourd'hui";
+  $("stKicked").textContent = nf.format(st.kicked);
+  $("stKickMode").textContent = cfg.action === "kick" ? "exclusion activée" : "exclusion désactivée";
+  $("stLast").textContent = st.lastActionAt ? timeAgo(st.lastActionAt) : "Aucune";
+  $("stLastSub").textContent = st.lastActionAt ? clock(st.lastActionAt) : "";
+}
+
+function renderGroups() {
+  if (!cfg) return;
+  const q = $("groupSearch").value.trim().toLowerCase();
+  const enabled = new Set(cfg.enabledGroups);
+  const shown = groups.filter((g) =>
+    (!q || g.subject.toLowerCase().includes(q)) &&
+    (groupFilter === "all" || (groupFilter === "on" && enabled.has(g.id)) || (groupFilter === "noadmin" && !g.botAdmin)),
+  );
+  $("groupCount").textContent = groups.length ? nf.format(enabled.size) + " actif" + (enabled.size > 1 ? "s" : "") + " sur " + nf.format(groups.length) : "";
+  const box = $("groups");
+  if (!shown.length) {
+    box.replaceChildren(groups.length
+      ? h("div", { class: "empty" }, h("b", { text: "Aucun groupe" }), "Rien ne correspond à ce filtre.")
+      : h("div", { class: "empty" }, h("b", { text: "Liste vide" }), "Clique sur Actualiser pour charger tes groupes."));
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const g of shown) {
+    const on = enabled.has(g.id);
+    const sw = h("input", { type: "checkbox", class: "switch", role: "switch", "aria-label": "Surveiller " + g.subject });
+    sw.checked = on;
+    sw.addEventListener("change", () => updateConfig((c) => {
+      c.enabledGroups = sw.checked ? [...new Set([...c.enabledGroups, g.id])] : c.enabledGroups.filter((x) => x !== g.id);
+    }));
+    frag.append(h("label", { class: "group" + (on ? " on" : "") },
+      h("span", { class: "avatar", "aria-hidden": "true", text: initials(g.subject) }),
+      h("span", { class: "meta" },
+        h("div", { class: "name", text: g.subject, title: g.subject }),
+        h("div", { class: "sub" },
+          h("span", { text: nf.format(g.size) + " membres" }),
+          g.botAdmin ? h("span", { class: "tag", text: "bot admin" }) : h("span", { class: "tag warn" }, icon("alert"), "bot non admin"),
+        ),
+      ),
+      sw,
+    ));
+  }
+  box.replaceChildren(frag);
+}
+
+function patternView(p) {
+  const m = p.match(/^\/(.+)\/([a-z]*)$/s);
+  if (!m) return h("span", { class: "val plain", text: p });
+  return h("span", { class: "val" }, h("span", { class: "slash", text: "/" }), m[1], h("span", { class: "slash", text: "/" + m[2] }));
+}
+
+const LISTS = {
+  patterns: {
+    box: "rules",
+    view: patternView,
+    parse: (v) => v.trim(),
+    validate: (v, list, i) => !v ? "Motif vide." : patternError(v) || (list.some((x, j) => x === v && j !== i) ? "Ce motif existe déjà." : null),
+    empty: () => cfg.blockInviteLinks ? "Aucune règle en plus du blocage des liens." : "Aucune règle.",
+    mono: true,
+  },
+  whitelist: {
+    box: "whitelist",
+    view: (d) => h("span", { class: "val plain", text: formatPhone(d) }),
+    parse: normPhone,
+    validate: (d, list, i) => d.length < 8 || d.length > 15 ? "Numéro invalide, utilise le format international." : list.some((x, j) => x === d && j !== i) ? "Ce numéro est déjà dans la whitelist." : null,
+    empty: () => "Aucun numéro.",
+  },
+};
+
+function startEdit(key, i) {
+  editing = { key, i };
+  renderConfig();
+}
+
+function renderList(key) {
+  const def = LISTS[key];
+  const items = cfg[key];
+  const box = $(def.box);
+  if (!items.length) { box.replaceChildren(h("div", { class: "empty", text: def.empty() })); return; }
+  box.replaceChildren(...items.map((it, i) => {
+    if (editing && editing.key === key && editing.i === i) return editRow(key, it, i);
+    const val = def.view(it);
+    val.title = "Cliquer pour modifier";
+    val.addEventListener("click", () => startEdit(key, i));
+    return h("div", { class: "token" },
+      val,
+      h("span", { class: "acts" },
+        key === "patterns" && isRegex(it) ? h("span", { class: "tag", text: "regex" }) : null,
+        h("button", { class: "btn ghost sm icon", type: "button", "aria-label": "Modifier", title: "Modifier", onclick: () => startEdit(key, i) }, icon("pencil")),
+        h("button", { class: "btn ghost sm icon rm", type: "button", "aria-label": "Retirer", title: "Retirer", onclick: () => updateConfig((c) => c[key].splice(i, 1)) }, icon("x")),
+      ),
+    );
+  }));
+}
+
+function editRow(key, value, i) {
+  const def = LISTS[key];
+  const ta = h("textarea", { class: "input" + (def.mono ? " mono" : ""), rows: 1, spellcheck: "false", "aria-label": "Modifier" });
+  ta.value = key === "whitelist" ? formatPhone(value) : value;
+  const err = h("div", { class: "field-error" });
+  let done = false;
+  const finish = (commit, fromBlur) => {
+    if (done) return;
+    if (commit) {
+      const v = def.parse(ta.value);
+      if (v === value) commit = false;
+      else {
+        const e = def.validate(v, cfg[key], i);
+        if (e && !fromBlur) { err.textContent = e; ta.focus(); return; }
+        if (e) commit = false;
+      }
+      done = true;
+      editing = null;
+      if (commit) updateConfig((c) => { c[key][i] = v; });
+      else renderConfig();
+      return;
+    }
+    done = true;
+    editing = null;
+    renderConfig();
+  };
+  ta.addEventListener("input", () => { autosize(ta); err.textContent = ""; });
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  });
+  ta.addEventListener("blur", () => setTimeout(() => finish(true, true), 0));
+  const row = h("div", {}, h("div", { class: "token editing" }, ta), err);
+  requestAnimationFrame(() => { autosize(ta); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
+  return row;
+}
+
+function renderConfig() {
+  if (!cfg) return;
+  $("blockInviteLinks").checked = cfg.blockInviteLinks;
+  $("ignoreAdmins").checked = cfg.ignoreAdmins;
+  for (const b of $("action").children) b.setAttribute("aria-pressed", String(b.dataset.v === cfg.action));
+  $("ruleCount").textContent = cfg.patterns.length ? nf.format(cfg.patterns.length) : "";
+  $("wlCount").textContent = cfg.whitelist.length ? nf.format(cfg.whitelist.length) : "";
+  renderList("patterns");
+  renderList("whitelist");
+}
+
+function addFromInput(key, input, errorEl) {
+  const def = LISTS[key];
+  if (!cfg || !input.value.trim()) return;
+  const v = def.parse(input.value);
+  const e = def.validate(v, cfg[key], -1);
+  if (e) { input.classList.add("invalid"); errorEl.textContent = e; return; }
+  input.value = "";
+  if (input.tagName === "TEXTAREA") autosize(input);
+  updateConfig((c) => c[key].push(v));
+}
+
+function addToWhitelist(number) {
+  updateConfig((c) => { c.whitelist = [...new Set([...c.whitelist, number])]; });
+  toast(formatPhone(number) + " ajouté à la whitelist");
+  renderEvents(lastState.events);
+}
+function renderEvents(events) {
+  const box = $("events");
+  if (!events.length) {
+    box.replaceChildren(h("div", { class: "empty" }, h("b", { text: "Rien pour l'instant" }), "Les messages bloqués apparaîtront ici."));
+    return;
+  }
+  const opts = { onWhitelist: addToWhitelist, isWhitelisted: (n) => cfg?.whitelist.includes(n) };
+  box.replaceChildren(...events.map((e) => eventRow(e, opts)));
+}
+
+let testTimer = null;
+let testSeq = 0;
+function runTest() {
+  clearTimeout(testTimer);
+  testTimer = setTimeout(async () => {
+    const text = $("testInput").value;
+    const out = $("testResult");
+    if (!text.trim() || !cfg) { out.replaceChildren(); return; }
+    const seq = ++testSeq;
+    try {
+      const { reason } = await api("POST", "/api/test", { text, config: cfg });
+      if (seq !== testSeq) return;
+      out.replaceChildren(reason
+        ? h("span", { class: "tag bad" }, icon("x"), "Bloqué")
+        : h("span", { class: "tag ok" }, icon("check"), "Autorisé"),
+        reason ? h("span", { class: "where", text: reason }) : null);
+    } catch (e) {
+      out.replaceChildren(h("span", { class: "tag warn", text: e.message }));
+    }
+  }, 250);
+}
+
+async function poll() {
+  try {
+    const s = await api("GET", "/api/state");
+    lastState = s;
+    if (!cfg) { cfg = s.config; renderConfig(); }
+    renderTop(s);
+    const gs = JSON.stringify(s.groups.map((g) => [g.id, g.subject, g.size, g.botAdmin]));
+    if (gs !== groupsSig) { groupsSig = gs; groups = s.groups; renderGroups(); }
+    const es = s.events.map((e) => e.id).join(",");
+    if (es !== eventsSig) { eventsSig = es; renderEvents(s.events); }
+    renderStats();
+  } catch {
+    renderStatusChip(null);
+  }
+}
+
+segmented($("groupFilter"), (v) => { groupFilter = v; renderGroups(); });
+segmented($("action"), (v) => updateConfig((c) => { c.action = v; }));
+$("blockInviteLinks").addEventListener("change", (e) => updateConfig((c) => { c.blockInviteLinks = e.target.checked; }));
+$("ignoreAdmins").addEventListener("change", (e) => updateConfig((c) => { c.ignoreAdmins = e.target.checked; }));
+
+let searchTimer = null;
+$("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderGroups, 80); });
+
+for (const [form, input, error, key] of [["ruleForm", "ruleInput", "ruleError", "patterns"], ["wlForm", "wlInput", "wlError", "whitelist"]]) {
+  $(input).addEventListener("input", () => {
+    $(input).classList.remove("invalid");
+    $(error).textContent = "";
+    if ($(input).tagName === "TEXTAREA") autosize($(input));
+  });
+  $(form).addEventListener("submit", (ev) => { ev.preventDefault(); addFromInput(key, $(input), $(error)); });
+}
+$("ruleInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addFromInput("patterns", $("ruleInput"), $("ruleError")); }
+});
+$("testInput").addEventListener("input", () => { autosize($("testInput")); runTest(); });
+
+$("refreshBtn").addEventListener("click", async () => {
+  const b = $("refreshBtn");
+  b.disabled = true;
+  b.classList.add("spin");
+  try {
+    const r = await api("POST", "/api/groups/refresh");
+    groups = r.groups;
+    groupsSig = JSON.stringify(groups.map((g) => [g.id, g.subject, g.size, g.botAdmin]));
+    renderGroups();
+    renderStats();
+    toast(nf.format(groups.length) + " groupes chargés");
+  } catch (e) {
+    toast(/rate-overlimit/.test(e.message) ? "WhatsApp limite les requêtes, réessaie dans quelques minutes." : e.message, "err");
+  } finally {
+    b.classList.remove("spin");
+    b.disabled = lastState?.status !== "open";
+  }
+});
+
+$("reconnectBtn").addEventListener("click", () => api("POST", "/api/reconnect").then(poll).catch((e) => toast(e.message, "err")));
+$("logoutBtn").addEventListener("click", () => $("logoutDialog").showModal());
+$("logoutDialog").addEventListener("close", () => {
+  if ($("logoutDialog").returnValue === "ok") api("POST", "/api/logout").then(poll).catch((e) => toast(e.message, "err"));
+});
+window.addEventListener("beforeunload", (e) => { if (saving || saveTimer) e.preventDefault(); });
+
+every(3000, poll);
+</script>
+</body>
+</html>

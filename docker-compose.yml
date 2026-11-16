@@ -1,0 +1,17 @@
+services:
+  bot:
+    build: .
+    image: whatsapp-mod:local
+    container_name: whatsapp-mod
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Paris
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - data:/app/data
+
+volumes:
+  data:
