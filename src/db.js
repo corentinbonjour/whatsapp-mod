@@ -42,6 +42,15 @@ const insertStmt = db.prepare(`
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
+const strikesStmt = db.prepare(`
+  SELECT COUNT(*) AS n FROM events
+  WHERE type = 'spam' AND outcome IN ('deleted', 'kicked') AND group_id = ? AND sender = ? AND at >= ?
+`);
+
+export function countStrikes(groupId, sender, since) {
+  return strikesStmt.get(groupId, sender, since).n;
+}
+
 export function addEvent(e) {
   insertStmt.run(
     e.at,

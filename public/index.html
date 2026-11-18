@@ -85,6 +85,17 @@
             <button type="button" data-v="kick" aria-pressed="false">Supprimer et exclure</button>
           </div>
         </div>
+        <label class="setting" id="autoKickRow">
+          <span class="txt"><b>Exclure les récidivistes</b><span id="autoKickDesc"></span></span>
+          <input type="checkbox" class="switch" role="switch" id="autoKick">
+        </label>
+        <div class="setting-sub" id="autoKickParams" hidden>
+          <span>Après</span>
+          <input class="input num" type="number" id="autoKickCount" min="2" max="100" step="1" aria-label="Nombre de messages supprimés">
+          <span>messages supprimés en</span>
+          <input class="input num" type="number" id="autoKickMinutes" min="1" max="10080" step="1" aria-label="Durée en minutes">
+          <span>minutes</span>
+        </div>
       </section>
 
       <section class="glass card">
@@ -229,7 +240,9 @@ function renderStats() {
   $("stDeleted").textContent = nf.format(st.deleted);
   $("stToday").textContent = nf.format(st.today) + " aujourd'hui";
   $("stKicked").textContent = nf.format(st.kicked);
-  $("stKickMode").textContent = cfg.action === "kick" ? "exclusion activée" : "exclusion désactivée";
+  $("stKickMode").textContent = cfg.action === "kick" ? "exclusion activée"
+    : cfg.autoKick ? "après " + cfg.autoKickCount + " messages en " + cfg.autoKickMinutes + " min"
+    : "exclusion désactivée";
   $("stLast").textContent = st.lastActionAt ? timeAgo(st.lastActionAt) : "Aucune";
   $("stLastSub").textContent = st.lastActionAt ? clock(st.lastActionAt) : "";
 }
@@ -377,6 +390,15 @@ function renderConfig() {
   $("blockInviteLinks").checked = cfg.blockInviteLinks;
   $("ignoreAdmins").checked = cfg.ignoreAdmins;
   for (const b of $("action").children) b.setAttribute("aria-pressed", String(b.dataset.v === cfg.action));
+  const kickAll = cfg.action === "kick";
+  $("autoKick").checked = cfg.autoKick;
+  $("autoKick").disabled = kickAll;
+  $("autoKickRow").classList.toggle("disabled", kickAll);
+  $("autoKickDesc").textContent = kickAll
+    ? "Sans effet, l'action exclut déjà au premier message"
+    : "Exclut l'auteur après plusieurs messages supprimés dans le même groupe";
+  $("autoKickParams").hidden = !cfg.autoKick || kickAll;
+  for (const k of ["autoKickCount", "autoKickMinutes"]) if (document.activeElement !== $(k)) $(k).value = cfg[k];
   $("ruleCount").textContent = cfg.patterns.length ? nf.format(cfg.patterns.length) : "";
   $("wlCount").textContent = cfg.whitelist.length ? nf.format(cfg.whitelist.length) : "";
   renderList("patterns");
@@ -451,6 +473,15 @@ segmented($("groupFilter"), (v) => { groupFilter = v; renderGroups(); });
 segmented($("action"), (v) => updateConfig((c) => { c.action = v; }));
 $("blockInviteLinks").addEventListener("change", (e) => updateConfig((c) => { c.blockInviteLinks = e.target.checked; }));
 $("ignoreAdmins").addEventListener("change", (e) => updateConfig((c) => { c.ignoreAdmins = e.target.checked; }));
+$("autoKick").addEventListener("change", (e) => updateConfig((c) => { c.autoKick = e.target.checked; }));
+for (const k of ["autoKickCount", "autoKickMinutes"]) {
+  $(k).addEventListener("change", (e) => {
+    const el = e.target;
+    const n = el.value === "" ? cfg[k] : Math.min(Math.max(Math.round(Number(el.value)), Number(el.min)), Number(el.max));
+    el.value = n;
+    if (n !== cfg[k]) updateConfig((c) => { c[k] = n; });
+  });
+}
 
 let searchTimer = null;
 $("groupSearch").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderGroups, 80); });

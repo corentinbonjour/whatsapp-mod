@@ -13,7 +13,7 @@ import makeWASocket, {
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { DATA_DIR, getConfig } from './config.js';
-import { addEvent } from './db.js';
+import { addEvent, countStrikes } from './db.js';
 import { extractText, findSpam } from './filter.js';
 import { pictureVersion, syncPictures } from './pictures.js';
 
@@ -199,12 +199,25 @@ async function handleMessage(m) {
   const kickKey = `${jid}|${userPart(sender)}`;
   const now = Date.now();
   for (const [k, at] of recentKicks) if (now - at > KICK_MEMORY_MS) recentKicks.delete(k);
-  if (cfg.action === 'kick' && !recentKicks.has(kickKey)) {
+  let kick = cfg.action === 'kick';
+  let strikes = 0;
+  if (!kick && cfg.autoKick) {
+    const since = new Date(now - cfg.autoKickMinutes * 60000).toISOString();
+    strikes = countStrikes(jid, base.sender, since) + 1;
+    kick = strikes >= cfg.autoKickCount;
+  }
+  if (kick && !recentKicks.has(kickKey)) {
     recentKicks.set(kickKey, now);
     await enqueueAction(() => sock.groupParticipantsUpdate(jid, [sender], 'remove'));
     outcome = 'kicked';
   }
-  log(`${outcome === 'kicked' ? 'Supprimé et exclu' : 'Supprimé'}: ${base.sender} dans ${base.group} (${reason})`, {
+  const label =
+    outcome !== 'kicked'
+      ? 'Supprimé'
+      : strikes
+        ? `Supprimé et exclu (${strikes} messages en ${cfg.autoKickMinutes} min)`
+        : 'Supprimé et exclu';
+  log(`${label}: ${base.sender} dans ${base.group} (${reason})`, {
     ...base,
     outcome,
   });
