@@ -12,6 +12,9 @@ const DEFAULTS = {
   action: 'delete',
   ignoreAdmins: true,
   whitelist: [],
+  autoKick: false,
+  autoKickCount: 3,
+  autoKickMinutes: 60,
 };
 
 function load() {
@@ -25,6 +28,11 @@ function load() {
 
 const strList = (v) =>
   Array.isArray(v) ? [...new Set(v.map((s) => String(s).trim()).filter(Boolean))] : [];
+
+const intIn = (v, min, max, def) => {
+  const n = v == null || v === '' ? NaN : Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : def;
+};
 
 export function sanitize(c = {}) {
   const patterns = strList(c.patterns);
@@ -42,6 +50,9 @@ export function sanitize(c = {}) {
     action: c.action === 'kick' ? 'kick' : 'delete',
     ignoreAdmins: c.ignoreAdmins !== false,
     whitelist: strList(c.whitelist),
+    autoKick: c.autoKick === true,
+    autoKickCount: intIn(c.autoKickCount, 2, 100, DEFAULTS.autoKickCount),
+    autoKickMinutes: intIn(c.autoKickMinutes, 1, 10080, DEFAULTS.autoKickMinutes),
   };
 }
 

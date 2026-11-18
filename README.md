@@ -66,6 +66,8 @@ Le champ « Tester un message » montre tout de suite si un texte serait bloqué
 
 Les messages des admins du groupe et des numéros de la whitelist ne sont jamais filtrés. L'action par défaut supprime le message. L'option « Supprimer et exclure » retire aussi l'auteur du groupe, une seule fois même s'il a envoyé plusieurs messages.
 
+Avec l'action « Supprimer », l'option « Exclure les récidivistes » (désactivée par défaut) retire l'auteur quand il atteint un nombre de messages supprimés dans le même groupe sur une durée donnée, par exemple 3 messages en 60 minutes. Le compte se base sur l'historique, il tient donc après un redémarrage.
+
 ## Limites de requêtes
 
 WhatsApp limite le nombre de requêtes par compte. Le bot n'en envoie que pour supprimer un message ou exclure quelqu'un, avec au moins 1,5 seconde entre deux actions. La liste des groupes ne se recharge que sur un clic sur Actualiser. Si WhatsApp répond `rate-overlimit`, attendez quelques minutes avant de réessayer.
